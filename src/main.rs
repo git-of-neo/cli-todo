@@ -47,7 +47,7 @@ async fn list_view(pool: &SqlitePool) -> Result<(), sqlx::Error> {
 async fn add_view(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     let mut stdout = stdout().into_raw_mode().unwrap();
     let stdin = stdin();
-    print!("{}{}New Entry:", cursor::Goto(1, 1), clear::All,);
+    print!("{}{}New Entry : ", cursor::Goto(1, 1), clear::All,);
     stdout.flush().unwrap();
 
     let mut inp = String::new();
@@ -105,21 +105,91 @@ async fn command_view() -> () {
     }
 }
 
+enum KnownMigration {
+    InitTable,
+    AddHashColumn,
+}
+
+impl KnownMigration {
+    fn hash(&self) -> &'static str {
+        match self {
+            Self::InitTable => "Init Todo Table",
+            Self::AddHashColumn => "Add Hash Column to Todo Table",
+        }
+    }
+
+    fn all() -> Vec<KnownMigration> {
+        vec![KnownMigration::InitTable, KnownMigration::AddHashColumn]
+    }
+}
+
+async fn execute(m: &KnownMigration, pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    match m {
+        KnownMigration::InitTable => {
+            sqlx::query(
+                "
+                CREATE TABLE IF NOT EXISTS Todo(
+                    id INTEGER PRIMARY KEY,
+                    content TEXT
+                );
+                ",
+            )
+            .execute(pool)
+            .await?;
+        }
+        KnownMigration::AddHashColumn => {
+            sqlx::query(
+                "
+                ALTER TABLE Todo
+                ADD active INTEGER CHECK(active=1 OR active=0)
+                ",
+            )
+            .execute(pool)
+            .await?;
+        }
+    }
+    Ok(())
+}
+
+#[derive(FromRow, Debug)]
+#[allow(dead_code)]
+struct Migration {
+    hash: String,
+}
+
+async fn perform_migrations(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "
+        CREATE TABLE IF NOT EXISTS Migration(
+            id INTEGER PRIMARY KEY,
+            hash TEXT UNIQUE
+        );
+        ",
+    )
+    .execute(pool)
+    .await?;
+
+    let past_migrations = sqlx::query_as::<_, Migration>("SELECT hash FROM Migration;")
+        .fetch_all(pool)
+        .await?;
+
+    for m in &KnownMigration::all()[past_migrations.len()..] {
+        execute(&m, pool).await?;
+        sqlx::query("INSERT INTO Migration (hash) VALUES (?);")
+            .bind(m.hash())
+            .execute(pool)
+            .await?;
+    }
+
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<(), sqlx::Error> {
     let pool = SqlitePool::connect("sqlite://db.sqlite3?mode=rwc").await?;
     let mut stdout = stdout().into_raw_mode().unwrap();
 
-    sqlx::query(
-        "
-        CREATE TABLE IF NOT EXISTS Todo(
-            id INTEGER PRIMARY KEY,
-            content TEXT
-        );
-        ",
-    )
-    .execute(&pool)
-    .await?;
+    perform_migrations(&pool).await?;
 
     command_view().await;
     sleep(Duration::from_secs(2)).await;
