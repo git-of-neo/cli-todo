@@ -141,7 +141,7 @@ async fn execute(m: &KnownMigration, pool: &SqlitePool) -> Result<(), sqlx::Erro
             sqlx::query(
                 "
                 ALTER TABLE Todo
-                ADD active INTEGER CHECK(active=1 OR active=0)
+                ADD active INTEGER DEFAULT 1 CHECK(active=1 OR active=0)
                 ",
             )
             .execute(pool)
