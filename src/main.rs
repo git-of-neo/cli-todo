@@ -4,7 +4,7 @@ use std::fmt;
 use std::io::{stdin, stdout, Write};
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
-use termion::{clear, cursor, event};
+use termion::{clear, color, cursor, event, style};
 use tokio::time::{sleep, Duration};
 
 #[derive(FromRow)]
@@ -34,7 +34,13 @@ async fn add_todo(pool: &SqlitePool, content: String) -> Result<(), sqlx::Error>
 }
 
 async fn list_todos(todos: &Vec<Todo>) -> Result<u16, sqlx::Error> {
-    println!("{}{}Welcome!", clear::All, cursor::Goto(1, 1));
+    println!(
+        "{}{}{}Welcome!{}",
+        style::Bold,
+        clear::All,
+        cursor::Goto(1, 1),
+        style::Reset
+    );
     println!("{}", cursor::Goto(1, 1));
     let mut line = 2u16;
     for t in todos {
@@ -153,13 +159,46 @@ async fn add_view<W: Write>(pool: &SqlitePool, stdout: &mut W) -> Result<(), sql
     Ok(())
 }
 
+struct Command<'a> {
+    key: &'a str,
+    description: &'a str,
+}
+
+impl fmt::Display for Command<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}Press {}{}{} => {}{}",
+            style::Bold,
+            color::Fg(color::Green),
+            self.key,
+            color::Fg(color::Reset),
+            self.description,
+            style::Reset
+        )
+    }
+}
+
 async fn command_view() -> () {
     println!("{}{}Commands: ", clear::All, cursor::Goto(1, 1));
     println!("{}", cursor::Goto(1, 1));
     let mut line = 1u16;
 
-    for cmd in vec!["Press 'a' => Add TODO", "Press CTRL+'C' => Exit program"] {
-        println!("{}.{}{}", line, cursor::Goto(1, line), cmd);
+    for cmd in [
+        Command {
+            key: "'a'",
+            description: "Add TODO",
+        },
+        Command {
+            key: "Enter",
+            description: "Mark TODO as done",
+        },
+        Command {
+            key: "CTRL+'C'",
+            description: "Exit program",
+        },
+    ] {
+        println!("{}{}", cursor::Goto(1, line), cmd);
         line += 1;
     }
 }
