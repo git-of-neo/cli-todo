@@ -1,2 +1,3 @@
 # CLI Todo List
-Simple Rust CLI Todo list using [termion](https://github.com/redox-os/termion), [sqlx](https://github.com/launchbadge/sqlx) and sqlite.
+![todo](https://github.com/git-of-neo/cli-todo/assets/64857033/3c8bcfba-338b-480f-b53c-48cb87e0af7b)
+
